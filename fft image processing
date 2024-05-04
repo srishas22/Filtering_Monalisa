@@ -1,0 +1,81 @@
+import cv2
+import numpy as np
+import urllib.request
+from matplotlib import pyplot as plt
+
+# Load the image
+url='https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/330px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg'
+response = urllib.request.urlopen(url)
+image_array = np.array(bytearray(response.read()), dtype=np.uint8)
+image= cv2.imdecode(image_array, -1,)
+image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+#FFT
+f = np.fft.fft2(image)
+fshift = np.fft.fftshift(f)
+magnitude_spectrum = 20*np.log(np.abs(fshift))
+
+# Apply Gaussian blur filter (EXTENDED VERSION)
+rows, cols = image.shape
+crow, ccol = rows//2 , cols//2
+# Create a mask, centered at (crow, ccol)
+mask = np.zeros((rows, cols), np.uint8)
+r = 50
+center = [crow, ccol]
+x, y = np.ogrid[:rows, :cols]
+mask_area = (x - center[0])**2 + (y - center[1])**2 <= r*r
+mask[mask_area] = 1
+
+# Apply the mask and inverse FFT
+fshift_filtered = fshift * mask
+f_filtered = np.fft.ifftshift(fshift_filtered)
+magnitude_spectrum_filtered = 20*np.log(np.abs(fshift_filtered))
+img_back = np.fft.ifft2(f_filtered)
+img_back = np.abs(img_back)
+
+# Apply the sepia filter
+sepia_kernel = np.array([[0.393, 0.769, 0.189],
+                          [0.349, 0.686, 0.168],
+                          [0.272, 0.534, 0.131]])
+sepia_image = cv2.filter2D(image, -1, sepia_kernel)
+
+# Apply Sobel Filters
+sobel_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5)
+sobel_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5)
+
+gradient_magnitude = np.sqrt(sobel_x**2 + sobel_y**2)
+
+# Apply Laplacian Filter
+laplacian = cv2.Laplacian(image, cv2.CV_64F)
+
+# Apply Box Filter (Normalized)
+box_filtered_norm = cv2.boxFilter(image, -1, (5, 5), normalize=True)
+
+# Display the images
+plt.figure(figsize=(12, 10))
+
+plt.subplot(331), plt.imshow(image, cmap='gray')
+plt.title('Original Image'), plt.xticks([]), plt.yticks([])
+
+plt.subplot(332),plt.imshow(magnitude_spectrum, cmap = 'gray')
+plt.title('FFT'), plt.xticks([]), plt.yticks([])
+
+plt.subplot(333),plt.imshow(magnitude_spectrum_filtered, cmap = 'gray')
+plt.title('FFT Filtered'), plt.xticks([]), plt.yticks([])
+
+plt.subplot(334),plt.imshow(img_back, cmap = 'gray')
+plt.title('Gaussian Blur'), plt.xticks([]), plt.yticks([])
+
+plt.subplot(335), plt.imshow(sepia_image, cmap='gray')
+plt.title('Sepia'), plt.xticks([]), plt.yticks([])
+
+plt.subplot(336), plt.imshow(gradient_magnitude, cmap='gray')
+plt.title('Sobel'), plt.xticks([]), plt.yticks([])
+
+plt.subplot(337), plt.imshow(laplacian, cmap='gray')
+plt.title('Laplacian'), plt.xticks([]), plt.yticks([])
+
+plt.subplot(338), plt.imshow(box_filtered_norm, cmap='gray')
+plt.title('Box Filter (Normalized)'), plt.xticks([]), plt.yticks([])
+
+plt.show()
